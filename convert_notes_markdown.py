@@ -1,12 +1,10 @@
 import os
-
 from bs4 import BeautifulSoup
 from datetime import datetime
 
 # Path to the input HTML file
-input_file_path = 'D:/Downloads/flomo@Leche-20240623/Leche的笔记.html'  #修改为下载的路径及文件名
-output_directory = 'D:/Downloads/flomo@Leche-20240623/'  #修改为输出的路径
-
+input_file_path = 'D:/Downloads/flomo@Leche-20240623/Leche的笔记.html'  # 修改为下载的路径及文件名
+output_directory = 'D:/Downloads/flomo@Leche-20240623/'  # 修改为输出的路径
 
 # Ensure the output directory exists
 os.makedirs(output_directory, exist_ok=True)
@@ -23,27 +21,33 @@ memos_by_date = {}
 for memo in memos:
     time_str = memo.find('div', class_='time').text
     date_str = time_str.split(' ')[0]  # Extract the date part
-    content = memo.find('div', class_='content').find_all('p')
+    content = memo.find('div', class_='content').find_all(['p', 'ol', 'ul'])
 
     if date_str not in memos_by_date:
         memos_by_date[date_str] = []
-    
+
     memo_content = {
         'time': time_str,
         'tag': '',
         'body': ''
     }
 
-    for p in content:
-        p_text = p.text.strip()
-        if p_text.startswith('#'):
-            memo_content['tag'] = p_text
+    for element in content:
+        element_html = str(element)
+        element_html = element_html.replace('<br>', '  \n').replace('<br/>', '  \n')
+        
+        if element.name == 'ol':
+            element_html = element_html.replace('<ol>', '').replace('</ol>', '').replace('<li>', '1. ').replace('</li>', '  \n')
+        elif element.name == 'ul':
+            element_html = element_html.replace('<ul>', '').replace('</ul>', '').replace('<li>', '- ').replace('</li>', '  \n')
+        
+        element_html_soup = BeautifulSoup(element_html, 'html.parser')
+        element_text = element_html_soup.get_text('\n', strip=False)
+        
+        if element.name == 'p' and element_text.startswith('#'):
+            memo_content['tag'] = element_text
         else:
-            body_html = str(p)
-            # Keep HTML tags and line breaks
-            body_html = body_html.replace('<p>', '').replace('</p>', '').replace('<br/>', '\n')
-            body_html = BeautifulSoup(body_html, 'html.parser').get_text('\n', strip=False)
-            memo_content['body'] += body_html + '\n'
+            memo_content['body'] += element_text + '  \n'  # Add two spaces for Markdown line break
     
     images = memo.find_all('img')
     for img in images:
@@ -60,7 +64,8 @@ for date_str, memos in memos_by_date.items():
         for memo in memos:
             md_file.write(f"## {memo['time']}\n")
             if memo['tag']:
-                md_file.write(f"{memo['tag']}\n")
+                md_file.write(f"{memo['tag']}\n\n")  # Ensure tag is on its own line
             md_file.write(f"{memo['body']}\n")
+            md_file.write('\n\n')  # Ensure two blank lines after each memo
 
 print("Markdown files have been created successfully.")
